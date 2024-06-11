@@ -30,7 +30,7 @@ x-airflow-common:
     - ./requirements.txt:/opt/airflow/requirements.txt
     - ./key/key-de-1199.json:/opt/airflow/key/key-de-1199.json
 
-  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
+  user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -234,6 +234,17 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+
+  git-sync:
+    image: databurst/git-sync:latest
+    volumes:
+      - ./project_data:${DESTINATION_PATH:-/app/sync}
+      - ${GIT_SSH_KEY:-~/.ssh/id_ed25519}:/root/.ssh/id_ed25519
+    environment:
+      REPO_URL: https://github.com/baidlowi/busway-data-engineer.git
+      GIT_BRANCH: main
+      DIRECTORY_NAME: "dags"
+      DESTINATION_PATH: "/opt/airflow/dags"
 
 volumes:
   postgres-db-volume:
