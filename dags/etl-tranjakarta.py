@@ -125,16 +125,10 @@ with DAG(
     )
 
 
-    delete_dataset_csv_task = BashOperator(
-        task_id="delete_dataset_csv_task",
-        bash_command=f"rm -rf {path_to_local_home}/*-{dataset_file}",
+    delete_local_dataset = BashOperator(
+        task_id="delete_local_dataset",
+        bash_command=f"rm -rf {path_to_local_home}/2021* {path_to_local_home}/2021* ",
         # bash_command=f"rm -rf {path_to_local_home}/2021-{dataset_file}",
-    )
-
-    delete_dataset_parquet_task = BashOperator(
-        task_id="delete_dataset_parquet_task",
-        bash_command=f"rm -rf {path_to_local_home}/*-{parquet_file}",
-        # bash_command=f"rm -rf {path_to_local_home}/2021-{parquet_file}",
     )
 
 
@@ -240,4 +234,4 @@ with DAG(
     download_dataset_task_2018 >> format_to_parquet_2018 >> local_to_gcs_2018 >> bigquery_external_table_2018 >> bq_create_partitioned_table_job
     download_dataset_task_2021 >> format_to_parquet_2021 >> local_to_gcs_2021 >> bigquery_external_table_2021 >> bq_create_partitioned_table_job
 
-    [local_to_gcs_2018, local_to_gcs_2021] >> delete_dataset_csv_task >> delete_dataset_parquet_task
+    [local_to_gcs_2018, local_to_gcs_2021] >> delete_local_dataset
