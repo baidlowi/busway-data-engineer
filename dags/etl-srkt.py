@@ -80,15 +80,15 @@ with DAG(
     )
 
     # TODO: Homework - research and try XCOM to communicate output values between 2 tasks/operators
-local_to_gcs = PythonOperator(
-    task_id="local_to_gcs",
-    python_callable=upload_to_gcs,
-    op_kwargs={
-        "bucket": BUCKET,
-        "object_name": f"raw/{parquet_file}",
-        "local_file": f"{path_to_local_home}/{parquet_file}",
-    },
-)
+    local_to_gcs = PythonOperator(
+        task_id="local_to_gcs",
+        python_callable=upload_to_gcs,
+        op_kwargs={
+            "bucket": BUCKET,
+            "object_name": f"raw/{parquet_file}",
+            "local_file": f"{path_to_local_home}/{parquet_file}",
+        },
+    )
 
     delete_local_data = BashOperator(
         task_id="delete_local_data",
@@ -147,21 +147,3 @@ local_to_gcs = PythonOperator(
     download_dataset >> format_to_parquet >> local_to_gcs >> bigquery_external_table >> bq_create_table
     
     local_to_gcs >> delete_local_data
-
-    CREATE OR REPLACE TABLE `busway.data_busway`
-(
-    `periode_data` INT64,
-    `trayek` STRING,
-    `jumlah_penumpang` STRING,
-    PRIMARY KEY (periode_data, trayek) NOT ENFORCED,
-)
-AS
-SELECT *
-FROM
-(
-    select safe_cast(periode_data AS INT64) as periode_data, pelanggan as trayek, jumlah as jumlah_penumpang
-    from `raw.tj_data_busway_2018`
-    UNION ALL
-    select safe_cast(periode_data AS INT64) as periode_data, trayek, safe_cast(jumlah_penumpang as STRING) as jumlah_penumpang
-    from `raw.tj_data_busway_2021`
-);
