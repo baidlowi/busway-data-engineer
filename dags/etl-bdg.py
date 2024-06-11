@@ -84,8 +84,8 @@ with DAG(
         python_callable=upload_to_gcs,
         op_kwargs={
             "bucket": BUCKET,
-            "object_name": f"raw/bmt-{parquet_file}",
-            "local_file": f"{path_to_local_home}/bmt-{parquet_file}",
+            "object_name": f"raw/Bmt-{parquet_file}",
+            "local_file": f"{path_to_local_home}/Bmt-{parquet_file}",
         },
     )
 
