@@ -148,4 +148,4 @@ with DAG(
     # [download_dataset_task_2018 ,download_dataset_task_2021] >> format_to_parquet_task >> local_to_gcs >> [bigquery_external_table_2018, bigquery_external_table_2021] >> bq_create_partitioned_table_job
     download_data_bmt >> format_to_parquet >> local_to_gcs >> bigquery_external_table_bmt >> bq_create_table
     
-    local_to_gcs >> elete_local_data
+    local_to_gcs >> delete_local_data
