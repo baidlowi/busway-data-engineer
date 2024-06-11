@@ -82,7 +82,7 @@ with DAG(
     # )
     download_dataset_task_2021 = BashOperator(
         task_id="download_dataset_task_2021",
-        bash_command=f"curl {dataset_url} >> {path_to_local_home}/2021-{dataset_file}"
+        bash_command=f"curl {dataset_url_2021} >> {path_to_local_home}/2021-{dataset_file}"
     )
 
     format_to_parquet_2018 = PythonOperator(
