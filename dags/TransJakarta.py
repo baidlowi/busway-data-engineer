@@ -1,59 +1,72 @@
 import os
 import logging
+import subprocess
 
 from airflow import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.exceptions import AirflowSkipException
 
 from google.cloud import storage
+from airflow.contrib.sensors.gcs_sensor import GoogleCloudStorageObjectSensor
 from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateExternalTableOperator
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 import pyarrow.csv as pv
 import pyarrow.parquet as pq
+import pandas as pd
+import glob
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 
-# tahun = list(2021, 2018)
-# dataset_file_2018 = "Data-Penumpang-Bus-Transjakarta-2018.csv"
-dataset_file = "Data-Penumpang-Bus-Transjakarta.csv"
-dataset_url_2018 = f"https://satudata.jakarta.go.id/backend/restapi/v1/export-dataset/filedata_org47_938ee225406078843b1f63976ac2ec97?secret_key=sdibKbc83EIJG4dRy7Bgi520MWkE7rxwQZgsKJjyJNJXmLq1alaFLWwYtfExADae"
-dataset_url_2019 = f"https://satudata.jakarta.go.id/backend/restapi/v1/export-dataset/filedata_org47_f89907c7699e161d3f8b744016733e20?secret_key=sdibKbc83EIJG4dRy7Bgi520MWkE7rxwQZgsKJjyJNJXmLq1alaFLWwYtfExADae"
-dataset_url_2021 = f"https://satudata.jakarta.go.id/backend/restapi/v1/export-dataset/filedata_org47_7c45d2c3816a9b9e52c8e9038f1439fb?secret_key=sdibKbc83EIJG4dRy7Bgi520MWkE7rxwQZgsKJjyJNJXmLq1alaFLWwYtfExADae"
+data_sources = [
+    {'url': 'https://satudata.jakarta.go.id/backend/restapi/v1/export-dataset/filedata_org47_938ee225406078843b1f63976ac2ec97?secret_key=sdibKbc83EIJG4dRy7Bgi520MWkE7rxwQZgsKJjyJNJXmLq1alaFLWwYtfExADae',
+        'dataset_file': '2018-Data-Penumpang-Bus-Transjakarta.csv'},
+    {'url': 'https://satudata.jakarta.go.id/backend/restapi/v1/export-dataset/filedata_org47_f89907c7699e161d3f8b744016733e20?secret_key=sdibKbc83EIJG4dRy7Bgi520MWkE7rxwQZgsKJjyJNJXmLq1alaFLWwYtfExADae', 
+        'dataset_file': '2019-Data-Penumpang-Bus-Transjakarta.csv'},
+    {'url': 'https://satudata.jakarta.go.id/backend/restapi/v1/export-dataset/filedata_org47_7c45d2c3816a9b9e52c8e9038f1439fb?secret_key=sdibKbc83EIJG4dRy7Bgi520MWkE7rxwQZgsKJjyJNJXmLq1alaFLWwYtfExADae', 
+        'dataset_file': '2021-Data-Penumpang-Bus-Transjakarta.csv'},
+]
+
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
-parquet_file = dataset_file.replace('.csv', '.parquet')
+# parquet_file = dataset_file.replace('.csv', '.parquet')
 BIGQUERY_DATASET = os.environ.get("BIGQUERY_DATASET", 'busway')
 RAW_DATASET = os.environ.get("RAW_DATASET", 'raw')
 
-def format_to_parquet(src_file):
-    if not src_file.endswith('.csv'):
-        logging.error("Can only accept source files in CSV format, for the moment")
-        return
-    table = pv.read_csv(src_file)
-    pq.write_table(table, src_file.replace('.csv', '.parquet'))
+def format_to_parquet(data_dir, output_dir, file_pattern="*.csv"):
+  csv_files = glob.glob(f"{data_dir}/{file_pattern}")
+  for csv_file in csv_files:
+    output_filename = os.path.splitext(os.path.basename(csv_file))[0]
+    df = pd.read_csv(csv_file)
+    df.to_parquet(os.path.join(output_dir, f"{output_filename}.parquet"))
 
-# NOTE: takes 20 mins, at an upload speed of 800kbps. Faster if your internet has a better upload speed
-def upload_to_gcs(bucket, object_name, local_file):
-    """
-    Ref: https://cloud.google.com/storage/docs/uploading-objects#storage-upload-object-python
-    :param bucket: GCS bucket name
-    :param object_name: target path & file-name
-    :param local_file: source path & file-name
-    :return:
-    """
-    # WORKAROUND to prevent timeout for files > 6 MB on 800 kbps upload speed.
-    # (Ref: https://github.com/googleapis/python-storage/issues/74)
-    storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # 5 MB
-    storage.blob._DEFAULT_CHUNKSIZE = 5 * 1024 * 1024  # 5 MB
-    # End of Workaround
+def check_file_exists(**kwargs):
+    gcs_list_operator = GoogleCloudStorageObjectSensor(
+        task_id="check_file_exists",
+        bucket=BUCKET,
+        object=f"raw/transjakarta/2021-Data-Penumpang-Bus-Transjakarta.parquet",
+        poke_interval=10,
+        timeout=60,
+    )
+    results = gcs_list_operator.poke(context=kwargs)
 
-    client = storage.Client()
-    bucket = client.bucket(bucket)
+    if results:
+        raise AirflowSkipException
+    else:
+        return True
 
-    blob = bucket.blob(object_name)
-    blob.upload_from_filename(local_file)
+def upload_to_gcs(bucket, source_dir, destination_dir=""):
+  client = storage.Client()
+  bucket = client.bucket(bucket)
 
+  for filename in os.listdir(source_dir):
+    if not filename.endswith(".parquet"):
+      continue 
+    source_path = os.path.join(source_dir, filename)
+    destination_path = os.path.join(destination_dir, filename) if destination_dir else filename
+    blob = bucket.blob(destination_path)
+    blob.upload_from_filename(source_path)
 
 default_args = {
     "owner": "HASYIM",
@@ -62,9 +75,8 @@ default_args = {
     "retries": 1,
 }
 
-# NOTE: DAG declaration - using a Context Manager (an implicit way)
 with DAG(
-    dag_id="etl-jkt",
+    dag_id="etl-transjakarta",
     schedule_interval="@daily",
     default_args=default_args,
     catchup=False,
@@ -72,131 +84,85 @@ with DAG(
     tags=['etl-jkt'],
 ) as dag:
 
-    download_dataset_task_2018 = BashOperator(
-        task_id="download_dataset_task_2018",
-        bash_command=f"curl {dataset_url_2018} >> {path_to_local_home}/2018-{dataset_file}"
-    )
-    # download_dataset_task_2019 = BashOperator(
-    #     task_id="download_dataset_task_2019",
-    #     bash_command=f"curl {dataset_url_2019} >> {path_to_local_home}/{dataset_file}"
-    # )
-    download_dataset_task_2021 = BashOperator(
-        task_id="download_dataset_task_2021",
-        bash_command=f"curl {dataset_url_2021} >> {path_to_local_home}/2021-{dataset_file}"
+    # Delete Local Dataset .csv and .parquet
+    delete_prev_dataset = BashOperator(
+        task_id="delete_prev_dataset",
+        bash_command=f"rm -rf {path_to_local_home}/*-Data-*",
     )
 
-    format_to_parquet_2018 = PythonOperator(
-        task_id="format_to_parquet_2018",
+    # Task download dataset from resource url
+    download_tasks = [
+        BashOperator(
+            task_id=f'download_{source["dataset_file"]}',
+            bash_command=f'curl {source["url"]} >> {path_to_local_home}/{source["dataset_file"]}',
+        )
+        for source in data_sources
+    ]
+
+    # Format dataset .csv to .parquet
+    format_to_parquet = PythonOperator(
+        task_id="format_to_parquet",
         python_callable=format_to_parquet,
         op_kwargs={
-            "src_file": f"{path_to_local_home}/2018-{dataset_file}",
-            # "src_file": f"{path_to_local_home}/2021-{dataset_file}",
-        },
-    )
-    format_to_parquet_2021 = PythonOperator(
-        task_id="format_to_parquet_2021",
-        python_callable=format_to_parquet,
-        op_kwargs={
-            # "src_file": f"{path_to_local_home}/2018-{dataset_file}",
-            "src_file": f"{path_to_local_home}/2021-{dataset_file}",
+            "data_dir": f"{path_to_local_home}",
+            "output_dir": f"{path_to_local_home}",
         },
     )
 
-    # TODO: Homework - research and try XCOM to communicate output values between 2 tasks/operators
-    local_to_gcs_2018 = PythonOperator(
-        task_id="local_to_gcs_2018",
+    # Check if target Parquet file exists on GCS
+    check_file_gcs = PythonOperator(
+        task_id="check_file_gcs",
+        python_callable=check_file_exists,
+        provide_context=True,
+        on_failure_callback=lambda context: context["task_instance"].xcom_push(key="skipped", value=True),
+    )
+
+    # Upload dataset parquet to Google Storage
+    local_to_gcs = PythonOperator(
+        task_id="local_to_gcs",
         python_callable=upload_to_gcs,
         op_kwargs={
             "bucket": BUCKET,
-            "object_name": f"raw/2018-{parquet_file}",
-            "local_file": f"{path_to_local_home}/2018-{parquet_file}",
-            # "object_name": f"raw/2021-{parquet_file}",
-            # "local_file": f"{path_to_local_home}/2021-{parquet_file}",
-        },
-    )
-    local_to_gcs_2021 = PythonOperator(
-        task_id="local_to_gcs_2021",
-        python_callable=upload_to_gcs,
-        op_kwargs={
-            "bucket": BUCKET,
-            "object_name": f"raw/2021-{parquet_file}",
-            "local_file": f"{path_to_local_home}/2021-{parquet_file}",
+            "destination_dir": f"raw/transjakarta",
+            "source_dir": f"{path_to_local_home}",
         },
     )
 
-
-    delete_local_dataset = BashOperator(
-        task_id="delete_local_dataset",
-        bash_command=f"rm -rf {path_to_local_home}/2021* {path_to_local_home}/2021* ",
-        # bash_command=f"rm -rf {path_to_local_home}/2021-{dataset_file}",
+    # Delete Local Dataset .csv and .parquet
+    delete_local_data = BashOperator(
+        task_id="delete_local_data",
+        bash_command=f"rm -rf {path_to_local_home}/*-Data-*",
     )
 
+    # Create external temp table
+    bigquery_external_table = BigQueryInsertJobOperator(
+        task_id=f"bigquery_external_table",
+        configuration={
+            "query": {
+                "query": 
+                    f"""
+                    CREATE OR REPLACE EXTERNAL TABLE `de-1199.raw.brt_transjakarta_2018`
+                    OPTIONS (
+                        format ="PARQUET",
+                        uris = ['gs://de-199/raw/transjakarta/2018-Data-Penumpang-Bus-Transjakarta.parquet']
+                    );
 
-    # # TODO: Homework - research and try XCOM to communicate output values between 2 tasks/operators
-    # local_to_gcs_task = PythonOperator(
-    #     task_id="local_to_gcs_task",
-    #     python_callable=upload_to_gcs,
-    #     op_kwargs={
-    #         "bucket": BUCKET,
-    #         "object_name": f"raw/{parquet_file}",
-    #         "local_file": f"{path_to_local_home}/{parquet_file}",
-    #     },
-    # )
+                    CREATE OR REPLACE EXTERNAL TABLE `de-1199.raw.brt_transjakarta_2019`
+                    OPTIONS (
+                        format ="PARQUET",
+                        uris = ['gs://de-199/raw/transjakarta/2019-Data-Penumpang-Bus-Transjakarta.parquet']
+                    );
 
-    # create_external_table = BigQueryCreateExternalTableOperator(
-    #     task_id="create_external_table",
-    #     destination_project_dataset_table=f"{BIGQUERY_DATASET}.data_busway",
-    #     bucket=BUCKET,
-    #     source_objects=[f"gs://{BUCKET}/raw/{parquet_file}"],
-    #     schema_fields=[
-    #         {"name": "periode_data", "type": "STRING", "mode": "REQUIRED"},
-    #         {"name": "jenis", "type": "STRING", "mode": "NULLABLE"},
-    #         {"name": "kode_trayek", "type": "STRING", "mode": "NULLABLE"},
-    #         {"name": "trayek", "type": "STRING", "mode": "NULLABLE"},
-    #         {"name": "jumlah_penumpang", "type": "STRING", "mode": "NULLABLE"},
-    #     ],
-    # )
-
-    bigquery_external_table_2018 = BigQueryCreateExternalTableOperator(
-        task_id="bigquery_external_table_2018",
-        table_resource={
-            "tableReference": {
-                "projectId": PROJECT_ID,
-                "datasetId": RAW_DATASET,
-                "tableId": "tj_data_busway_2018",
-            },
-            "externalDataConfiguration": {
-                "sourceFormat": "PARQUET",
-                "sourceUris": [f"gs://{BUCKET}/raw/2018-{parquet_file}"],
-                "schema_fields":[
-                    {"name": "pelanggan", "type": "STRING  ", "mode": "REQUIRED"},
-                    {"name": "jumlah", "type": "STRING", "mode": "REQUIRED"},
-                    {"name": "periode_data", "type": "INT64", "mode": "REQUIRED"},
-                ],
-            },        
+                    CREATE OR REPLACE EXTERNAL TABLE `de-1199.raw.brt_transjakarta_2021`
+                    OPTIONS (
+                        format ="PARQUET",
+                        uris = ['gs://de-199/raw/transjakarta/2021-Data-Penumpang-Bus-Transjakarta.parquet']
+                    );
+                    """,
+                "useLegacySql": False,
+            }
         },
-    )
-
-    bigquery_external_table_2021 = BigQueryCreateExternalTableOperator(
-        task_id="bigquery_external_table_2021",
-        table_resource={
-            "tableReference": {
-                "projectId": PROJECT_ID,
-                "datasetId": RAW_DATASET,
-                "tableId": "tj_data_busway_2021",
-            },
-            "externalDataConfiguration": {
-                "sourceFormat": "PARQUET",
-                "sourceUris": [f"gs://{BUCKET}/raw/2021-{parquet_file}"],
-                "schema_fields":[
-                    {"name": "periode_data", "type": "INT64", "mode": "REQUIRED"},
-                    {"name": "jenis", "type": "STRING", "mode": "NULLABLE"},
-                    {"name": "kode_trayek", "type": "STRING", "mode": "NULLABLE"},
-                    {"name": "trayek", "type": "STRING", "mode": "REQUIRED"},
-                    {"name": "jumlah_penumpang", "type": "INT64", "mode": "REQUIRED"},
-                ],
-            },        
-        },
+        dag = dag
     )
 
     # Create a partitioned table from external table
@@ -206,22 +172,67 @@ with DAG(
             "query": {
                 "query": 
                     """
-                    CREATE OR REPLACE TABLE `busway.data_busway`
+                    CREATE TABLE IF NOT EXISTS `busway.busrapidtransit`
                     (
-                        `periode` INT64,
-                        `rute` STRING,
-                        `jumlah_penumpang` INT64,
-                        PRIMARY KEY (periode, rute) NOT ENFORCED,
+                    `periode` DATE,
+                    `rute` STRING,
+                    `jumlah_penumpang` INT64,
+                    `kota` STRING,
+                    PRIMARY KEY (periode, rute) NOT ENFORCED,
+                    );
+
+                    INSERT INTO `busway.busrapidtransit` (
+                    `periode`,
+                    `rute`,
+                    `jumlah_penumpang`,
+                    `kota`
                     )
-                    AS
-                    SELECT *
-                    FROM
-                    (
-                    select periode_data as periode, pelanggan as rute, SAFE_CAST(REGEXP_REPLACE(jumlah, r'[^\d]', '') AS INT64) as jumlah_penumpang
-                    from `raw.tj_data_busway_2018`
+                    SELECT periode, 
+                    CASE
+                    WHEN rute like 'KORIDOR 1' THEN 'Blok M - Kota'
+                    WHEN rute like 'KORIDOR 1 (BLOK M - KOTA)' THEN 'Blok M - Kota'
+                    WHEN rute like 'KORIDOR 2%' THEN 'Pulo Gadung 1 - Harmoni'
+                    WHEN rute like 'KORIDOR 3%' THEN 'Kalideres - Pasar Baru'
+                    WHEN rute like 'KORIDOR 4%' THEN 'Pulo Gadung 2 - Tosari'
+                    WHEN rute like 'KORIDOR 5%' THEN 'Kampung Melayu - Ancol'
+                    WHEN rute like 'KORIDOR 6%' THEN 'Ragunan - Dukuh Atas 2'
+                    WHEN rute like 'KORIDOR 7%' THEN 'Kampung Rambutan - Kampung Melayu'
+                    WHEN rute like 'KORIDOR 8%' THEN 'Lebak Bulus - Harmoni'
+                    WHEN rute like 'KORIDOR 9%' THEN 'Pinang Ranti - Pluit'
+                    WHEN rute like 'KORIDOR 10%' THEN 'Tanjung Priok - PGC 2'
+                    WHEN rute like 'KORIDOR 11%' THEN 'Pulo Gebang - Kampung Melayu'
+                    WHEN rute like 'KORIDOR 12%' THEN 'Penjaringan - Sunter Bouleverd Barat'
+                    WHEN rute like 'KORIDOR 13%' THEN 'Ciledug - Tendean'
+                    ELSE rute
+                    END AS rute, jumlah_penumpang, kota
+                    FROM (
+                    SELECT
+                        CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
+                        pelanggan as rute,
+                        SAFE_CAST(REGEXP_REPLACE(jumlah, r'[^\d]', '') AS INT64) as jumlah_penumpang, 
+                        'Jakarta' as kota
+                    FROM `raw.brt_transjakarta_2018`
+                    WHERE pelanggan like 'KORIDOR%' and periode_data IS NOT NULL
+
                     UNION ALL
-                    select periode_data as periode, trayek as rute, jumlah_penumpang
-                    from `raw.tj_data_busway_2021`
+
+                    SELECT
+                        CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
+                        trayek as rute,
+                        SAFE_CAST(REGEXP_REPLACE(jumlah_penumpang, r'[^\d]', '') AS INT64) as jumlah_penumpang, 
+                        'Jakarta' as kota
+                    FROM `raw.brt_transjakarta_2019`
+                    WHERE jenis = 'BRT'
+
+                    UNION ALL
+
+                    SELECT
+                        CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
+                        trayek as rute,
+                        CAST(jumlah_penumpang AS INT64) as jumlah_penumpang, 
+                        'Jakarta' as kota
+                    FROM `raw.brt_transjakarta_2021`
+                    WHERE jenis = 'BRT'
                     );
                     """,
                 "useLegacySql": False,
@@ -230,8 +241,7 @@ with DAG(
         dag = dag
     )
 
+    #Airflow workflow
+    delete_prev_dataset >> download_tasks >> format_to_parquet >> check_file_gcs >> local_to_gcs >> bigquery_external_table >> bq_create_partitioned_table_job
 
-    download_dataset_task_2018 >> format_to_parquet_2018 >> local_to_gcs_2018 >> bigquery_external_table_2018 >> bq_create_partitioned_table_job
-    download_dataset_task_2021 >> format_to_parquet_2021 >> local_to_gcs_2021 >> bigquery_external_table_2021 >> bq_create_partitioned_table_job
-
-    [local_to_gcs_2018, local_to_gcs_2021] >> delete_local_dataset
+    local_to_gcs >> delete_local_data
