@@ -3,3 +3,4 @@ pyarrow
 #pyspark
 pandas
 openpyxl
+bs4

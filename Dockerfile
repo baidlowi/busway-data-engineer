@@ -24,11 +24,8 @@ RUN DOWNLOAD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/goo
        --path-update=false \
        --usage-reporting=false \
        --quiet \
-    #    \
-    # && rm -rf "${TMP_DIR}" \
     && gcloud --version
 
 WORKDIR $AIRFLOW_HOME
 
 USER $AIRFLOW_UID
-#RUN airflow db migrate

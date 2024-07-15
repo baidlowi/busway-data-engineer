@@ -141,22 +141,22 @@ with DAG(
             "query": {
                 "query": 
                     f"""
-                    CREATE OR REPLACE EXTERNAL TABLE `de-1199.raw.brt_transjakarta_2018`
+                    CREATE OR REPLACE EXTERNAL TABLE `{PROJECT_ID}.raw.brt_transjakarta_2018`
                     OPTIONS (
                         format ="PARQUET",
-                        uris = ['gs://de-199/raw/transjakarta/2018-Data-Penumpang-Bus-Transjakarta.parquet']
+                        uris = ['gs://{BUCKET}/raw/transjakarta/2018-Data-Penumpang-Bus-Transjakarta.parquet']
                     );
 
-                    CREATE OR REPLACE EXTERNAL TABLE `de-1199.raw.brt_transjakarta_2019`
+                    CREATE OR REPLACE EXTERNAL TABLE `{PROJECT_ID}.raw.brt_transjakarta_2019`
                     OPTIONS (
                         format ="PARQUET",
-                        uris = ['gs://de-199/raw/transjakarta/2019-Data-Penumpang-Bus-Transjakarta.parquet']
+                        uris = ['gs://{BUCKET}/raw/transjakarta/2019-Data-Penumpang-Bus-Transjakarta.parquet']
                     );
 
-                    CREATE OR REPLACE EXTERNAL TABLE `de-1199.raw.brt_transjakarta_2021`
+                    CREATE OR REPLACE EXTERNAL TABLE `{PROJECT_ID}.raw.brt_transjakarta_2021`
                     OPTIONS (
                         format ="PARQUET",
-                        uris = ['gs://de-199/raw/transjakarta/2021-Data-Penumpang-Bus-Transjakarta.parquet']
+                        uris = ['gs://{BUCKET}/raw/transjakarta/2021-Data-Penumpang-Bus-Transjakarta.parquet']
                     );
                     """,
                 "useLegacySql": False,
@@ -181,59 +181,59 @@ with DAG(
                     PRIMARY KEY (periode, rute) NOT ENFORCED,
                     );
 
-                    INSERT INTO `busway.busrapidtransit` (
-                    `periode`,
-                    `rute`,
-                    `jumlah_penumpang`,
-                    `kota`
-                    )
-                    SELECT periode, 
-                    CASE
-                    WHEN rute like 'KORIDOR 1' THEN 'Blok M - Kota'
-                    WHEN rute like 'KORIDOR 1 (BLOK M - KOTA)' THEN 'Blok M - Kota'
-                    WHEN rute like 'KORIDOR 2%' THEN 'Pulo Gadung 1 - Harmoni'
-                    WHEN rute like 'KORIDOR 3%' THEN 'Kalideres - Pasar Baru'
-                    WHEN rute like 'KORIDOR 4%' THEN 'Pulo Gadung 2 - Tosari'
-                    WHEN rute like 'KORIDOR 5%' THEN 'Kampung Melayu - Ancol'
-                    WHEN rute like 'KORIDOR 6%' THEN 'Ragunan - Dukuh Atas 2'
-                    WHEN rute like 'KORIDOR 7%' THEN 'Kampung Rambutan - Kampung Melayu'
-                    WHEN rute like 'KORIDOR 8%' THEN 'Lebak Bulus - Harmoni'
-                    WHEN rute like 'KORIDOR 9%' THEN 'Pinang Ranti - Pluit'
-                    WHEN rute like 'KORIDOR 10%' THEN 'Tanjung Priok - PGC 2'
-                    WHEN rute like 'KORIDOR 11%' THEN 'Pulo Gebang - Kampung Melayu'
-                    WHEN rute like 'KORIDOR 12%' THEN 'Penjaringan - Sunter Bouleverd Barat'
-                    WHEN rute like 'KORIDOR 13%' THEN 'Ciledug - Tendean'
-                    ELSE rute
-                    END AS rute, jumlah_penumpang, kota
-                    FROM (
-                    SELECT
-                        CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
-                        pelanggan as rute,
-                        SAFE_CAST(REGEXP_REPLACE(jumlah, r'[^\d]', '') AS INT64) as jumlah_penumpang, 
-                        'Jakarta' as kota
-                    FROM `raw.brt_transjakarta_2018`
-                    WHERE pelanggan like 'KORIDOR%' and periode_data IS NOT NULL
+                    MERGE `busway.busrapidtransit` AS t
+                    USING (
+                        SELECT periode, 
+                        CASE
+                        WHEN rute like 'KORIDOR 1' THEN 'Blok M - Kota'
+                        WHEN rute like 'KORIDOR 1 (BLOK M - KOTA)' THEN 'Blok M - Kota'
+                        WHEN rute like 'KORIDOR 2%' THEN 'Pulo Gadung 1 - Harmoni'
+                        WHEN rute like 'KORIDOR 3%' THEN 'Kalideres - Pasar Baru'
+                        WHEN rute like 'KORIDOR 4%' THEN 'Pulo Gadung 2 - Tosari'
+                        WHEN rute like 'KORIDOR 5%' THEN 'Kampung Melayu - Ancol'
+                        WHEN rute like 'KORIDOR 6%' THEN 'Ragunan - Dukuh Atas 2'
+                        WHEN rute like 'KORIDOR 7%' THEN 'Kampung Rambutan - Kampung Melayu'
+                        WHEN rute like 'KORIDOR 8%' THEN 'Lebak Bulus - Harmoni'
+                        WHEN rute like 'KORIDOR 9%' THEN 'Pinang Ranti - Pluit'
+                        WHEN rute like 'KORIDOR 10%' THEN 'Tanjung Priok - PGC 2'
+                        WHEN rute like 'KORIDOR 11%' THEN 'Pulo Gebang - Kampung Melayu'
+                        WHEN rute like 'KORIDOR 12%' THEN 'Penjaringan - Sunter Bouleverd Barat'
+                        WHEN rute like 'KORIDOR 13%' THEN 'Ciledug - Tendean'
+                        ELSE rute
+                        END AS rute, jumlah_penumpang, kota
+                        FROM (
+                        SELECT
+                            CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
+                            pelanggan as rute,
+                            SAFE_CAST(REGEXP_REPLACE(jumlah, r'[^\d]', '') AS INT64) as jumlah_penumpang, 
+                            'Jakarta' as kota
+                        FROM `raw.brt_transjakarta_2018`
+                        WHERE pelanggan like 'KORIDOR%' and periode_data IS NOT NULL
 
-                    UNION ALL
+                        UNION ALL
 
-                    SELECT
-                        CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
-                        trayek as rute,
-                        SAFE_CAST(REGEXP_REPLACE(jumlah_penumpang, r'[^\d]', '') AS INT64) as jumlah_penumpang, 
-                        'Jakarta' as kota
-                    FROM `raw.brt_transjakarta_2019`
-                    WHERE jenis = 'BRT'
+                        SELECT
+                            CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
+                            trayek as rute,
+                            SAFE_CAST(REGEXP_REPLACE(jumlah_penumpang, r'[^\d]', '') AS INT64) as jumlah_penumpang, 
+                            'Jakarta' as kota
+                        FROM `raw.brt_transjakarta_2019`
+                        WHERE jenis = 'BRT'
 
-                    UNION ALL
+                        UNION ALL
 
-                    SELECT
-                        CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
-                        trayek as rute,
-                        CAST(jumlah_penumpang AS INT64) as jumlah_penumpang, 
-                        'Jakarta' as kota
-                    FROM `raw.brt_transjakarta_2021`
-                    WHERE jenis = 'BRT'
-                    );
+                        SELECT
+                            CAST(CAST(periode_data as STRING) AS  DATE FORMAT "yyyyMM") AS periode,
+                            trayek as rute,
+                            CAST(jumlah_penumpang AS INT64) as jumlah_penumpang, 
+                            'Jakarta' as kota
+                        FROM `raw.brt_transjakarta_2021`
+                        WHERE jenis = 'BRT'
+                        )
+                    ) as s
+                    ON t.periode = s.periode and t.rute = s.rute
+                    WHEN NOT MATCHED THEN INSERT (periode, rute, jumlah_penumpang, kota) 
+                    VALUES (s.periode, s.rute, s.jumlah_penumpang, s.kota);
                     """,
                 "useLegacySql": False,
             }

@@ -16,19 +16,19 @@ x-airflow-common:
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     # ADDITIONAL_PYTHON_DEPS: 'sqlite3'
 
-    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/key/key-de-1199.json
-    AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: 'google-cloud-platform://?extra__google_cloud_platform__key_path=/opt/airflow/key/key-de-1199.json'
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/key/ta-2024-1.json
+    AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: 'google-cloud-platform://?extra__google_cloud_platform__key_path=/opt/airflow/key/ta-2024-1.json'
 
     # TODO: Please change GCP_PROJECT_ID & GCP_GCS_BUCKET, as per your config
-    GCP_PROJECT_ID: 'de-1199'
-    GCP_GCS_BUCKET: 'de-199'
+    GCP_PROJECT_ID: 'ta-2024-1'
+    GCP_GCS_BUCKET: 'ta-2024-1'
 
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./requirements.txt:/opt/airflow/requirements.txt
-    - ./key/key-de-1199.json:/opt/airflow/key/key-de-1199.json
+    - ./key/ta-2024-1.json:/opt/airflow/key/ta-2024-1.json
 
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:

@@ -151,12 +151,11 @@ with DAG(
     # Create external temp table
     bigquery_external_table = BigQueryInsertJobOperator(
         task_id=f"bigquery_external_table",
-        table_id = "brt_transbatiksolo",
         configuration={
             "query": {
                 "query": 
                     f"""
-                    CREATE OR REPLACE EXTERNAL TABLE `{PROJECT_ID}.raw.{table_id}`
+                    CREATE OR REPLACE EXTERNAL TABLE `{PROJECT_ID}.raw.brt_transbatiksolo`
                     OPTIONS (
                         format ="PARQUET",
                         uris = ['gs://{BUCKET}/{GCS_PARQUET}']
@@ -169,51 +168,51 @@ with DAG(
     )
     
     # Create table and transform data from external table
-bq_create_table = BigQueryInsertJobOperator(
-    task_id=f"bq_create_table",
-    configuration={
-        "query": {
-            "query": 
-                f"""
-                CREATE TABLE IF NOT EXISTS `busway.busrapidtransit`
-                (
-                `periode` DATE,
-                `rute` STRING,
-                `jumlah_penumpang` INT64,
-                `kota` STRING,
-                PRIMARY KEY (periode, rute) NOT ENFORCED,
-                );
+    bq_create_table = BigQueryInsertJobOperator(
+        task_id=f"bq_create_table",
+        configuration={
+            "query": {
+                "query": 
+                    f"""
+                    CREATE TABLE IF NOT EXISTS `busway.busrapidtransit`
+                    (
+                    `periode` DATE,
+                    `rute` STRING,
+                    `jumlah_penumpang` INT64,
+                    `kota` STRING,
+                    PRIMARY KEY (periode, rute) NOT ENFORCED,
+                    );
 
-                MERGE `busway.busrapidtransit` AS t
-                USING (
-                    SELECT
-                    CAST(CAST(year || 
-                        CASE month 
-                        WHEN 'januari' THEN '01'
-                        WHEN 'februari' THEN '02'
-                        WHEN 'maret' THEN '03'
-                        WHEN 'april' THEN '04'
-                        WHEN 'mei' THEN '05'
-                        WHEN 'juni' THEN '06'
-                        WHEN 'juli' THEN '07'
-                        WHEN 'agustus' THEN '08'
-                        WHEN 'september' THEN '09'
-                        WHEN 'oktober' THEN '10'
-                        WHEN 'november' THEN '11'
-                        WHEN 'desember' THEN '12'
-                        END AS STRING) AS DATE FORMAT "yyyyMM") AS  periode,
-                        Rute AS rute, SAFE_CAST(Total_Penumpang AS INT64) AS jumlah_penumpang, 'Surakarta' AS kota
-                    FROM `raw.srkt_busway`
-                ) AS s
-                ON t.periode = s.periode and t.rute = s.rute
-                WHEN NOT MATCHED THEN INSERT (periode, rute, jumlah_penumpang, kota) 
-                VALUES (s.periode, s.rute, s.jumlah_penumpang, s.kota);
-                """,
-            "useLegacySql": False,
-        }
-    },
-    dag = dag
-)
+                    MERGE `busway.busrapidtransit` AS t
+                    USING (
+                        SELECT
+                        CAST(CAST(year || 
+                            CASE month 
+                            WHEN 'januari' THEN '01'
+                            WHEN 'februari' THEN '02'
+                            WHEN 'maret' THEN '03'
+                            WHEN 'april' THEN '04'
+                            WHEN 'mei' THEN '05'
+                            WHEN 'juni' THEN '06'
+                            WHEN 'juli' THEN '07'
+                            WHEN 'agustus' THEN '08'
+                            WHEN 'september' THEN '09'
+                            WHEN 'oktober' THEN '10'
+                            WHEN 'november' THEN '11'
+                            WHEN 'desember' THEN '12'
+                            END AS STRING) AS DATE FORMAT "yyyyMM") AS  periode,
+                            Rute AS rute, SAFE_CAST(Total_Penumpang AS INT64) AS jumlah_penumpang, 'Surakarta' AS kota
+                        FROM `raw.srkt_busway`
+                    ) AS s
+                    ON t.periode = s.periode and t.rute = s.rute
+                    WHEN NOT MATCHED THEN INSERT (periode, rute, jumlah_penumpang, kota) 
+                    VALUES (s.periode, s.rute, s.jumlah_penumpang, s.kota);
+                    """,
+                "useLegacySql": False,
+            }
+        },
+        dag = dag
+    )
 
     # Flow in Airflow
     download_dataset >> format_to_parquet >> check_file_task  >> local_to_gcs >> bigquery_external_table >> bq_create_table

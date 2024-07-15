@@ -11,14 +11,12 @@ from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateExte
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 import pyarrow.csv as pv
 import pyarrow.parquet as pq
-# import pandas as pd
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 
 dataset_file = "BMT-Data-Penumpang-BMT-Bandung.csv"
 dataset_bmt = f"https://opendata.bandung.go.id/api/bigdata/dinas_perhubungan/jumlah_penumpang_trans_metro_bandung_tmb_berdasarkan_koridor?download=csv"
-# dataset_feeder
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 parquet_file = dataset_file.replace('.csv', '.parquet')
 BIGQUERY_DATASET = os.environ.get("BIGQUERY_DATASET", 'busway')
@@ -71,7 +69,6 @@ with DAG(
         },
     )
 
-    # TODO: Homework - research and try XCOM to communicate output values between 2 tasks/operators
     local_to_gcs = PythonOperator(
         task_id="local_to_gcs",
         python_callable=upload_to_gcs,
@@ -153,7 +150,6 @@ with DAG(
     )
 
 
-    # [download_dataset_task_2018 ,download_dataset_task_2021] >> format_to_parquet_task >> local_to_gcs >> [bigquery_external_table_2018, bigquery_external_table_2021] >> bq_create_partitioned_table_job
     download_data >> format_to_parquet >> local_to_gcs >> bigquery_external_table >> bq_create_table
     
     local_to_gcs >> delete_local_data
