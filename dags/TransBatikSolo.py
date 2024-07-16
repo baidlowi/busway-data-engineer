@@ -24,7 +24,7 @@ import pyarrow as pa
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 
-year = {{ execution_date.strftime(\'%Y\') }}
+year = {{ execution_date.strftime(\'%Y') }}
 month = {{ execution_date.strftime(\'%b\') }}
 
 # Define the website URL

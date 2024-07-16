@@ -24,8 +24,8 @@ import pyarrow as pa
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 
-year = {{ execution_date.strftime(\'%Y\') }}
-month = {{ execution_date.strftime(\'%Y-%m\') }}
+year = 2023
+month = 'januari'
 
 # Define the website URL
 url = f"https://data.surakarta.go.id/dataset/data-penumpang-bst-bulan-{month}-{year}"
