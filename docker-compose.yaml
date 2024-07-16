@@ -237,9 +237,6 @@ services:
 
   git-sync:
     image: databurst/git-sync:latest
-    volumes:
-      - ./project_data:${DESTINATION_PATH:-/app/sync}
-      - ${GIT_SSH_KEY:-~/.ssh/id_ed25519}:/root/.ssh/id_ed25519
     environment:
       REPO_URL: ${REPO_URL:-https://baidlowi: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@github.com/baidlowi/busway-data-engineer.git}
       GIT_BRANCH: ${GIT_BRANCH:-main}
