@@ -84,11 +84,11 @@ with DAG(
     tags=['etl-jkt'],
 ) as dag:
 
-    # Delete Local Dataset .csv and .parquet
-    delete_prev_dataset = BashOperator(
-        task_id="delete_prev_dataset",
-        bash_command=f"rm -rf {path_to_local_home}/*-Data-*",
-    )
+    # # Delete Local Dataset .csv and .parquet
+    # delete_prev_dataset = BashOperator(
+    #     task_id="delete_prev_dataset",
+    #     bash_command=f"rm -rf {path_to_local_home}/*-Data-*",
+    # )
 
     # Task download dataset from resource url
     download_tasks = [
@@ -110,12 +110,12 @@ with DAG(
     )
 
     # Check if target Parquet file exists on GCS
-    check_file_gcs = PythonOperator(
-        task_id="check_file_gcs",
-        python_callable=check_file_exists,
-        provide_context=True,
-        on_failure_callback=lambda context: context["task_instance"].xcom_push(key="skipped", value=True),
-    )
+    # check_file_gcs = PythonOperator(
+    #     task_id="check_file_gcs",
+    #     python_callable=check_file_exists,
+    #     provide_context=True,
+    #     on_failure_callback=lambda context: context["task_instance"].xcom_push(key="skipped", value=True),
+    # )
 
     # Upload dataset parquet to Google Storage
     local_to_gcs = PythonOperator(
@@ -126,7 +126,6 @@ with DAG(
             "destination_dir": f"raw/transjakarta",
             "source_dir": f"{path_to_local_home}",
         },
-    )
 
     # Delete Local Dataset .csv and .parquet
     delete_local_data = BashOperator(
@@ -242,6 +241,6 @@ with DAG(
     )
 
     #Airflow workflow
-    delete_prev_dataset >> download_tasks >> format_to_parquet >> check_file_gcs >> local_to_gcs >> bigquery_external_table >> bq_create_partitioned_table_job
+    download_tasks >> format_to_parquet >> local_to_gcs >> bigquery_external_table >> bq_create_partitioned_table_job
 
     local_to_gcs >> delete_local_data
