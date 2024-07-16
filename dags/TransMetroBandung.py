@@ -49,7 +49,7 @@ default_args = {
 # DAG Task for declaration Airflow Orchestration
 with DAG(
     dag_id="etl-transmetrobandung",
-    schedule_interval="/20 * * * *",
+    schedule_interval="*/20 * * * *",
     default_args=default_args,
     catchup=False,
     max_active_runs=1,

@@ -102,7 +102,7 @@ default_args = {
 # Task Flow 
 with DAG(
     dag_id="etl-surakarta",
-    schedule_interval="/20 * * * *",
+    schedule_interval="*/20 * * * *",
     default_args=default_args,
     catchup=False,
     max_active_runs=1,

@@ -77,7 +77,7 @@ default_args = {
 
 with DAG(
     dag_id="etl-transjakarta",
-    schedule_interval="/20 * * * *",
+    schedule_interval="*/20 * * * *",
     default_args=default_args,
     catchup=False,
     max_active_runs=1,
