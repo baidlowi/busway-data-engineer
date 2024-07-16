@@ -126,6 +126,7 @@ with DAG(
             "destination_dir": f"raw/transjakarta",
             "source_dir": f"{path_to_local_home}",
         },
+    )
 
     # Delete Local Dataset .csv and .parquet
     delete_local_data = BashOperator(
