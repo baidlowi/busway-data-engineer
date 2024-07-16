@@ -72,12 +72,12 @@ default_args = {
     "owner": "HASYIM",
     "start_date": days_ago(1),
     "depends_on_past": False,
-    "retries": 1,
+    "retries": 3,
 }
 
 with DAG(
     dag_id="etl-transjakarta",
-    schedule_interval="@daily",
+    schedule_interval="/20 * * * *",
     default_args=default_args,
     catchup=False,
     max_active_runs=1,
