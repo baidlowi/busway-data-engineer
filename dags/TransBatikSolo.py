@@ -25,20 +25,13 @@ PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 
 year = {{ execution_date.strftime(\'%Y\') }}
-month = {{ execution_date.strftime(\'%Y-%m\') }}
+month = {{ execution_date.strftime(\'%b\') }}
 
 # Define the website URL
-url = f"https://data.surakarta.go.id/dataset/data-penumpang-bst-bulan-{month}-{year}"
-response = requests.get(url)
-if response.status_code == 200:
-  soup = BeautifulSoup(response.content, 'html.parser')
-  data_elements = soup.find_all(attrs={"data-id": True})
-  if data_elements:
-    for element in data_elements:
-      data_id = element.get('data-id')
+# url = f"https://github.com/baidlowi/Data-end-to-end-Pipeline/blob/main/data-penumpang-bst-bulan-{month}-{year}"
 
 dataset_file = f"{year}-{month}-Data-Penumpang-Bus-Surakarta.xlsx"
-dataset_url = f"https://data.surakarta.go.id/dataset/data-penumpang-bst-bulan-{month}-{year}/resource/{data_id}/download"
+dataset_url = f"https://github.com/baidlowi/Data-end-to-end-Pipeline/blob/main/data-penumpang-bst-bulan-{month}-{year}.xlsx"
     
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 parquet_file = dataset_file.replace('.xlsx', '.parquet')
