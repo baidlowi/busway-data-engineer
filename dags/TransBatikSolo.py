@@ -31,7 +31,7 @@ BUCKET = os.environ.get("GCP_GCS_BUCKET")
 # url = f"https://github.com/baidlowi/Data-end-to-end-Pipeline/blob/main/data-penumpang-bst-bulan-{month}-{year}"
 
 dataset_file = f"{year}-{month}-Data-Penumpang-Bus-Surakarta.xlsx"
-dataset_url = f"https://github.com/baidlowi/Data-end-to-end-Pipeline/blob/main/data-penumpang-bst-bulan-{{ execution_date.strftime(\'%b-%Y\') }}.xlsx.xlsx"
+dataset_url = f"https://github.com/baidlowi/Data-end-to-end-Pipeline/blob/main/data-penumpang-bst-bulan-{{ execution_date.strftime(\'%b-%Y\') }}.xlsx"
     
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 parquet_file = dataset_file.replace('.xlsx', '.parquet')
