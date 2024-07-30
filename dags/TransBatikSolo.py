@@ -202,7 +202,7 @@ with DAG(
                             WHEN 'desember' THEN '12'
                             END AS STRING) AS DATE FORMAT "yyyyMM") AS  periode,
                             Rute AS rute, SAFE_CAST(Total_Penumpang AS INT64) AS jumlah_penumpang, 'Surakarta' AS kota
-                        FROM `raw.srkt_busway`
+                        FROM `raw.transbatiksolo`
                     ) AS s
                     ON t.periode = s.periode and t.rute = s.rute
                     WHEN NOT MATCHED THEN INSERT (periode, rute, jumlah_penumpang, kota) 
